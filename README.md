@@ -1,6 +1,6 @@
 # TermPick
 Term-Seq analysis of S. aureus Term-Seq data, with Jai Tree and Sylvania Wu. 
-
+  
 The latest scripts are in the folder Source/Call_peaks_v2
 
 
