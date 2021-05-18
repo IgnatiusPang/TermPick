@@ -1,0 +1,239 @@
+---
+title: "Extract term-site sequences for poly-U enrichment check "
+output: html_notebook
+---
+
+## Common Directories
+```{r}
+base_dir <- here::here()
+
+data_dir <- file.path( base_dir, "Data" )
+
+graph_dir <- file.path(data_dir, "Bedtools_Count")
+
+results_dir <- file.path(base_dir, "Results")
+
+source_dir <- file.path(base_dir, "Source")
+
+```
+
+## Load libraries 
+```{r}
+
+if(!require(pacman)) {
+  install.packages("pacman")
+  libary(pacman)
+}
+
+p_load(tidyverse)
+p_load(vroom)
+p_load(here)
+p_load(seqinr)
+p_load(Biostrings)
+p_load(ggseqlogo) # https://github.com/omarwagih/ggseqlogo # Draw sequence logo
+
+source( file.path( source_dir, "Common", "common_functions.R") )
+source( file.path( source_dir, "Common", "motif_analysis.R") )
+
+```
+
+
+## Common parameters
+```{r}
+  use_log <- TRUE
+  window_length <- 8
+  std_dev_cutoff <-  7
+  replicate_cpm_cutoff <- 1
+  distance_window <- 5
+  
+  
+if(use_log==TRUE) {
+  
+  window_length <- 8
+  std_dev_cutoff <-  4
+  replicate_cpm_cutoff <- 1
+  distance_window <- 5
+  
+  replicate_cpm_cutoff <- log2(replicate_cpm_cutoff)
+}  
+
+input_parameter_string <-  paste( "win", window_length,  "_",
+                                  "sd", std_dev_cutoff,  
+                                  sep="" ) 
+
+full_parameter_string  <-  paste( "win", window_length,  "_",
+                                  "sd", std_dev_cutoff,  "_",
+                                  "cpm", replicate_cpm_cutoff, "_",
+                                  "gw", distance_window,
+                                  sep="" ) 
+
+print(paste(  "window_length = ", window_length, ", ",
+             "std_dev_cutoff = ", std_dev_cutoff,
+             sep=""))
+
+```
+
+## Directories Management
+```{r}
+
+selected_params_dir <- file.path(results_dir, "Sites", "Selected_Parameters")
+
+if (use_log == TRUE ) {
+  selected_params_dir <- file.path(results_dir, "Sites", "Log_Selected_Parameters")
+}
+
+create_dir_if_not_exists(selected_params_dir)
+
+
+```
+
+
+```{r}
+
+fasta_file <- file.path( data_dir, "Genomics/JDK6009/GCF_900607245.1_JKD6009_genomic.fna.gz" ) 
+```
+
+
+## Read the fasta file. 
+```{r}
+
+genome_seq <- read.fasta(file = fasta_file, 
+  seqtype = c("DNA"))
+
+genome_seq$NZ_LR027876.1
+
+length(genome_seq$NZ_LR027876.1)
+
+```
+
+
+
+## Read master table 
+```{r}
+
+master_table <- vroom::vroom(  file.path( selected_params_dir, 
+             paste0("master_table_", 
+                    full_parameter_string, ".tab")))
+```
+
+
+
+
+# How to get a section of the genome, how to perform reverse complement then convert back to string
+```{r}
+genome_seq$NZ_LR027876.1[1000:1015]
+
+temp_seq <- reverseComplement(DNAString(paste0(c(genome_seq$NZ_LR027876.1[1000:1015]), collapse="" )) )
+temp_seq
+toupper(as.character(temp_seq))
+```
+
+
+
+# Sequence Logos of the termination sites: 1. Termination sties in common among all four conditions 
+Get 15 position including termination site 
+```{r}
+# Positive strand
+positive_positions <- master_table %>%
+  dplyr::filter( strand == "+") %>%
+  dplyr::filter( cont == 1 &
+                   linz == 1 &
+                   tige == 1 &
+                   vanco == 1) %>%
+  pull(position)
+
+positive_motif <- pos_strand_term_seq_substr(positive_positions, genome_seq$NZ_LR027876.1 )
+
+ggplot() + 
+  geom_logo(   positive_motif )  + 
+  scale_x_continuous(breaks=c(1:16),
+        labels=c(-15:0)) + 
+  theme_logo()
+
+
+# Negative strand
+negative_positions <-  master_table %>%
+  dplyr::filter( strand == "-") %>%
+  dplyr::filter( cont == 1 &
+                   linz == 1 &
+                   tige == 1 &
+                   vanco == 1) %>%
+  pull(position)
+
+negative_motif <- neg_strand_term_seq_substr(negative_positions, genome_seq$NZ_LR027876.1)
+
+ggplot() + geom_logo(   negative_motif ) + theme_logo() + 
+  scale_x_continuous(breaks=c(1:16),
+        labels=c(-15:0)) + 
+  theme_logo()
+```      
+
+## Positive and negative strand together
+```{r}
+ filtered_tbl <- master_table %>%
+  dplyr::filter( cont == 1 &
+                   linz == 1 &
+                   tige == 1 &
+                   vanco == 1)
+
+term_seq_table <- term_seq_substr(filtered_tbl,  genome_seq$NZ_LR027876.1 )
+
+
+intersect_all_conditions <- ggplot() + geom_logo( as.vector(term_seq_table$sequence )) + theme_logo() + 
+  scale_x_continuous(breaks=c(1:16),
+        labels=c(-15:0))
+
+intersect_all_conditions
+
+ggsave(filename=file.path(selected_params_dir, "seq_logs_intersect_all_conditions.pdf" ) , plot=intersect_all_conditions)
+
+```
+
+
+
+# Sequence Logos of the termination sites: 2. Termination sties from all conditions
+
+## Positive and negative strand seperate
+```{r}
+
+# Positive strand
+positive_positions <- master_table %>%
+  dplyr::filter( strand == "+") %>%
+  pull(position)
+
+
+positive_motif <-  pos_strand_term_seq_substr(positive_positions, genome_seq$NZ_LR027876.1 )
+
+ggplot() + geom_logo(   positive_motif ) + theme_logo() + 
+  scale_x_continuous(breaks=c(1:16),
+        labels=c(-15:0))
+
+# Negative strand
+negative_positions <-  master_table %>%
+  dplyr::filter( strand == "-") %>%
+  pull(position)
+
+
+negative_motif <- neg_strand_term_seq_substr(negative_positions, genome_seq$NZ_LR027876.1)
+
+ggplot() + geom_logo(   negative_motif ) + theme_logo() + 
+  scale_x_continuous(breaks=c(1:16),
+        labels=c(-15:0))
+```
+
+## Positive and negative strand together
+```{r}
+term_seq_table <- term_seq_substr(master_table,  genome_seq$NZ_LR027876.1 )
+
+
+union_all_conditions <-  ggplot() + geom_logo(as.vector(term_seq_table$sequence ) ) + theme_logo() + 
+  scale_x_continuous(breaks=c(1:16),
+        labels=c(-15:0))
+
+union_all_conditions
+
+ggsave(filename=file.path(selected_params_dir, "seq_logs_union_all_conditions.pdf" ) , plot=union_all_conditions)
+ggsave(filename=file.path(selected_params_dir, "seq_logs_union_all_conditions.png" ) , plot=union_all_conditions)
+
+
+```

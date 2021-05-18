@@ -1,0 +1,310 @@
+    ---
+title: "Analyse the results of parameter scan"
+output: html_notebook
+---
+
+Pay particular attention to the effect of window size and the standard deviation parameter. 
+
+
+## Common Directories
+```{r}
+base_dir <- here::here()
+
+data_dir <- file.path( base_dir, "Data" )
+
+graph_dir <- file.path(data_dir, "Bedtools_Count")
+
+#results_dir <- file.path(base_dir, "Results")
+results_dir <- "/srv/scratch/treelab/SW_temporary_TermSeq_Results_of_run_pick_peak"
+
+source_dir <- file.path(base_dir, "Source")
+
+```
+
+
+## Load libraries 
+```{r}
+
+if(!require(pacman)) {
+  install.packages("pacman")
+  libary(pacman)
+}
+
+p_load(tidyverse)
+p_load(vroom)
+p_load(here)
+p_load(UpSetR)
+p_load(plotly)
+p_load(viridis)
+
+source( file.path( source_dir, "Common", "common_functions.R") )
+source( file.path( source_dir, "Common", "group_positions.R") )
+
+sessionInfo()
+```
+
+## Common parameters
+```{r}
+
+use_log <- TRUE
+
+```
+
+
+## Directories and Files management
+```{r}
+
+project_output_dir <- file.path( results_dir, "Sites_B_subtilis" )
+
+upset_counts_dir <- file.path(project_output_dir, "UpSet_Counts")
+upset_ratios_dir <- file.path(project_output_dir, "UpSet_Ratios")
+selected_params_dir <- file.path(project_output_dir, "Selected_Parameters")
+
+
+if (use_log == TRUE ) {
+
+  upset_counts_dir <- file.path(project_output_dir, "Log_UpSet_Counts")
+  upset_ratios_dir <- file.path(project_output_dir, "Log_UpSet_Ratios")
+  selected_params_dir <- file.path(project_output_dir, "Log_Selected_Parameters")
+
+}
+
+create_dir_if_not_exists(selected_params_dir)
+
+
+## File with the optimal results 
+selected_parameter_file <- file.path( selected_params_dir, 
+                          "condition_vs_position_clusters_win8_sd7_cpm1_gw5.tab")
+
+if( use_log == TRUE) {
+  selected_parameter_file <- file.path( selected_params_dir, 
+                          "condition_vs_position_clusters_win8_sd4_cpm0_gw5.tab")
+  
+}
+
+
+```
+
+```{r}
+# Threshold number of replicates with reads for each genomic position for it to be included in further analysis
+replicate_thresholds <- vroom::vroom( file.path( data_dir,
+                         "Replicate_Thresholds",
+                         "replicate_threshold_b_subtilis.tab" ))
+
+# replicate_thresholds <- vroom::vroom( file.path( data_dir, 
+#                          "Replicate_Thresholds", 
+#                          "replicate_threshold_s_aureus_jkd6009.tab" ))
+
+column_names_array <- replicate_thresholds %>% distinct(condition) %>% 
+  arrange(condition) %>% pull(condition)  
+```
+
+
+
+```{r}
+list_of_counts_files <- Sys.glob( file.path(upset_counts_dir, "upset_counts_win*_sd*.tab") )
+
+```
+
+
+```{r}
+
+num_columns <- purrr::map(list_of_counts_files, vroom::vroom) %>% purrr::map_int(ncol)
+
+counts_table <- purrr::map(list_of_counts_files[num_columns > 3], ~vroom::vroom(., id="filename") ) %>% 
+                bind_rows() %>%
+                mutate( filename = str_replace( filename, paste(upset_counts_dir, "/", sep=""), "" )) %>%
+                mutate( window = str_replace( filename, ".*win(\\d+).*", "\\1"   )) %>%
+                mutate( std_dev = str_replace( filename, ".*sd(\\d+).*", "\\1"   )) %>%
+                dplyr::select( -filename )
+
+counts_table
+
+
+counts_table %>%
+  distinct(window, std_dev)
+
+# counts_table %>%
+#   dplyr::filter(is.na(Amp) |
+#                   is.na(Bac) |
+#                   is.na(Cap) |
+#                   is.na(Em) |
+#                   is.na(Km) | 
+#                   is.na(Lm) |
+#                   is.na(Oflox))
+
+```
+
+
+## Find counts for each of the four conditions
+```{r}
+counts_table_clean <- counts_table %>%
+  group_by( across( one_of( c(column_names_array, "cpm_cutoff", "distance_window", "window", "std_dev"))) ) %>%
+  summarise( total_counts = sum(counts)) %>%
+  ungroup() %>%
+  mutate( window = as.integer(window),
+          std_dev = as.integer(std_dev)) %>%
+  arrange(  across( one_of( c(column_names_array, "window", "std_dev", "distance_window", "window"))) )
+
+counts_table_clean
+```
+
+# Counts of peaks found in all four conditions - heat map
+```{r}
+
+dist5_cpm1_counts <- counts_table_clean %>%
+  mutate( row_id = row_number()) %>%
+  pivot_longer( cols=column_names_array,
+                names_to="condition",
+                values_to="is_identified") %>%
+  mutate( is_identified = ifelse( is.na(is_identified), 0, is_identified)) %>%
+  dplyr::filter( is_identified == 1) %>%
+  arrange( cpm_cutoff, distance_window, window, std_dev, total_counts, row_id, condition) %>%
+  group_by( row_id, cpm_cutoff, distance_window, window, std_dev, total_counts ) %>%
+  dplyr::summarise( num_condition_identified = sum(is_identified)) %>%
+  ungroup() %>%
+  dplyr::filter( num_condition_identified >=4 ) %>%
+  dplyr::filter( cpm_cutoff == 1 &
+                   distance_window == 5)
+
+min_window <- dist5_cpm1_counts %>% distinct(window) %>% pull(window) %>% min
+max_window <- dist5_cpm1_counts %>% distinct(window) %>% pull(window) %>% max
+
+
+dist5_cpm1_counts_heatmap <- dist5_cpm1_counts %>%
+  mutate( window = factor(window, levels=seq(min_window, max_window,1) )) %>%
+  ggplot( aes(window, std_dev, fill= total_counts)) + 
+  geom_tile() +
+  scale_fill_viridis() + 
+  theme_bw()
+    
+dist5_cpm1_counts_heatmap
+
+## don't know why ggplotly is not working
+# ggplotly( dist5_cpm1_counts_heatmap)
+
+```
+
+
+# Total Number of peaks in all conditions - heat map
+```{r}
+total_counts_tbl <- counts_table_clean %>%
+  group_by( distance_window, cpm_cutoff, window, std_dev) %>%
+  summarise( total_counts=  sum( total_counts ) ) %>%
+  ungroup()
+
+
+dist5_cpm1_total_counts <- total_counts_tbl %>%
+  dplyr::filter( cpm_cutoff == 1 &
+                   distance_window == 5)
+
+
+dist5_cpm1_total_counts_heatmap <- dist5_cpm1_total_counts %>%
+  mutate( window = as.factor(window )) %>%
+  ggplot( aes(window, std_dev, fill= total_counts)) + 
+  geom_tile() +
+  scale_fill_viridis() + 
+  theme_bw()
+  
+
+ggplotly( dist5_cpm1_total_counts_heatmap)
+
+```
+
+
+# Ratio of Counts of peaks found in all four conditions / total number of peaks in all conditions, for all parameters
+
+# Get a list of all of the files 
+```{r}
+list_of_ratios_files <- Sys.glob( file.path(upset_ratios_dir, "upset_ratios_win*_sd*.tab") )
+
+```
+
+# Read in the files,
+```{r}
+ratios_table_raw <- vroom::vroom(list_of_ratios_files, 
+                                 id="filename")  # the full path of each file corresponding to each row
+                                                 # stored in a column with the name 'filename'
+
+```
+
+## Clean up the table 
+```{r}
+ratios_table <- ratios_table_raw %>%
+                ## replace the full path
+                mutate( filename = str_replace( filename, paste(upset_counts_dir, "/", sep=""), "" )) %>%
+                ## Extract the Window size used in peak picking
+                mutate( window = str_replace( filename, ".*win(\\d+).*", "\\1"   )) %>%
+                ## Extract the standard deviation used in peak picking
+                mutate( std_dev = str_replace( filename, ".*sd(\\d+).*", "\\1"   )) %>%
+                ## Remove the file name coumn 
+                dplyr::select( -filename ) %>%
+                ## Convert text column to integer column (as the window and std_dev were extracted from text)
+                mutate( window = as.integer(window),
+                        std_dev = as.integer(std_dev))  %>%
+                ## Sort rows 
+                arrange(  window, std_dev, distance_window, window)
+```
+
+## Ratios of groups of peaks found in all four conditions versus alll peaks in all conditions
+This is the plot of the ratios of groups of peaks found in all four conditions versus total number of groups of peaks. You can see that window size of 8 with standard deviation of 7 is close to optimal.
+
+2020-11-12 windows 5, standard deviation 3
+
+```{r}
+dist5_cpm1_ratios <- ratios_table  %>%
+  dplyr::filter( cpm_cutoff == 1 &
+                   distance_window == 5)
+
+
+
+dist5_cpm1_ratios_heatmap <- dist5_cpm1_ratios  %>%
+  mutate( window = as.factor(window )) %>%
+  ggplot( aes(window, std_dev, fill= ratio)) + 
+  geom_tile() +
+  scale_fill_viridis() + 
+  theme_bw()
+
+ggplotly_ratios <- ggplotly(dist5_cpm1_ratios_heatmap)
+
+ggplotly_ratios
+
+htmlwidgets::saveWidget(ggplotly_ratios, "ggplotly_ratios.html")
+
+
+```
+
+## Read data for upset plot 
+```{r}
+
+selected_parameter_tbl <- vroom::vroom( selected_parameter_file )
+
+
+```
+
+```{r}
+
+upset_freq <- upset( as.data.frame(selected_parameter_tbl), 
+       order.by = "freq",
+       decreasing = TRUE ) 
+
+upset_freq
+
+pdf( file.path(selected_params_dir, "upset_freq.pdf" ))
+upset_freq
+dev.off()
+
+
+upset_degree <- upset( as.data.frame(selected_parameter_tbl), 
+       order.by = "degree",
+       decreasing = TRUE ) 
+
+upset_degree
+
+pdf( file.path(selected_params_dir, "upset_degree.pdf" ))
+upset_degree
+dev.off()
+
+
+```
+

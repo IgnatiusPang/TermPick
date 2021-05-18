@@ -1,0 +1,158 @@
+## ------------------------------------------------------------------------
+base_dir <- here::here()
+
+data_dir <- file.path( base_dir, "Data" )
+
+graph_dir <- file.path(data_dir, "Bedtools_Count")
+
+results_dir <- file.path(base_dir, "Results")
+
+source_dir <- file.path(base_dir, "Source")
+
+
+
+## ------------------------------------------------------------------------
+      
+if(!require(pacman)) {
+  install.packages("pacman")
+  library(pacman)
+}
+
+p_load(tidyverse)
+p_load(vroom)
+p_load(here)
+p_load(devtools)
+#p_load(peakPick)
+p_load(furrr)
+
+
+if( !require(furrr)) {
+  devtools::install_github("DavisVaughan/furrr")
+  library(furrr)
+}
+
+
+source( file.path( source_dir, "Common", "common_functions.R") )
+source( file.path( source_dir, "Common", "pick_peaks.R") )
+
+
+
+
+## ------------------------------------------------------------------------
+
+use_log <- TRUE
+num_cores <- 6          
+window_length <- 20
+std_dev_cutoff <- 3
+replicate_cpm_cutoff <- 1
+distance_window <- 5
+compute_platform <- "clive"
+
+options <- commandArgs(trailingOnly = TRUE)
+
+if(length(options) > 0 ) {
+
+      compute_platform <- options[1]
+      num_cores <- as.numeric(options[2])
+      window_length <- as.numeric(options[3])
+      std_dev_cutoff <- as.numeric(options[4])
+
+} 
+
+input_parameter_string <-  paste( "win", window_length,  "_",
+                           "sd", std_dev_cutoff,  
+                           sep="" ) 
+
+print(paste( "compute_platform = ", compute_platform, ", ",
+             "num_cores = ", num_cores, ", ",
+             "window_length = ", window_length, ", ",
+             "std_dev_cutoff =", std_dev_cutoff, sep=""))
+
+
+pick_peak_dir <- file.path( results_dir, 
+                                  "Sites", 
+                                  "Pick_Peak") 
+
+if (use_log == TRUE ) {
+  
+  pick_peak_dir <- file.path( results_dir, 
+                                  "Sites", 
+                                  "Log_Pick_Peak") 
+}
+
+create_dir_if_not_exists(pick_peak_dir ) 
+
+output_file_name <- file.path( pick_peak_dir, 
+                                    paste( "cpm_only_wide_peaks_", input_parameter_string ,".tab", sep=""))
+
+
+
+## ------------------------------------------------------------------------
+
+run_analysis <- TRUE
+if(  file.exists(output_file_name)  ) {
+  if ( file.info(output_file_name)$size > 0 ) {
+     run_analysis <- FALSE
+    
+  } 
+}
+
+if ( run_analysis == FALSE ) {
+  stop(paste( "Output file", output_file_name, "already exists.")  )
+}
+
+
+
+## ------------------------------------------------------------------------
+options( future.globals.maxSize = 700*1024^2)
+future_options(seed = as.integer(12345 ) )
+
+plan(multiprocess, workers = num_cores)
+
+
+
+
+## ------------------------------------------------------------------------
+
+cpm_wider_tab_file <-  "cpm_wider_tbl.tab"
+
+if(use_log == TRUE) {
+  
+  cpm_wider_tab_file <-  "log_cpm_wider_tbl.tab"
+
+}
+
+cpm_wider_file <- file.path( results_dir,
+                               "Normalized_Data",
+                               cpm_wider_tab_file)
+
+cpm_wider_tbl <- vroom::vroom( cpm_wider_file )
+
+
+## ------------------------------------------------------------------------
+cpm_only_pivoted <- cpm_wider_tbl %>%
+  dplyr::select(position, contains("norm_depth"))
+
+rm(cpm_wider_tbl)
+
+
+
+
+## ------------------------------------------------------------------------
+print ("Started spikes detection.")
+
+spikes <- detect.spikes( as.matrix( cpm_only_pivoted[, c(2:ncol(cpm_only_pivoted))] ), 
+                         roi = c( window_length+1, 
+                                  nrow( cpm_only_pivoted ) - window_length), 
+                         winlen = window_length, 
+                         spike.min.sd = std_dev_cutoff, 
+                         # mc.cores = 1, 
+                         verbose = FALSE)
+
+print ("Completed spikes detection.")
+
+
+## ------------------------------------------------------------------------
+vroom::vroom_write( as.data.frame(spikes), 
+                    path=output_file_name )
+
