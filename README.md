@@ -3,6 +3,36 @@ Term-Seq analysis of S. aureus Term-Seq data, with Jai Tree and Sylvania Wu.
   
 The latest scripts are in the folder Source/Call_peaks_v2
 
+## Test Datasets
+
+Test data sets are located in the directory: /Users/ipang/PostDoc/2020/TermPick/Data/Bedtools_Count 
+These files will be read by the R scripts, more details below.
+
+## Install R and R libraries
+
+Please install R, more instructions here: https://cran.r-project.org/
+Please run the following packages within R to install packages:
+
+
+if(!require(pacman)){
+  install.packages("pacman")
+  library(pacman)
+}
+
+p_load(Biostrings)
+p_load(UpSetR)
+p_load(devtools)
+p_load(furrr)
+p_load(ggseqlogo) 
+p_load(here)
+p_load(magrittr)
+p_load(plotly)
+p_load(seqinr)
+p_load(tidyverse)
+p_load(viridis)
+p_load(vroom)
+p_load(multidplyr)
+p_load(pacman)
 
 ## Scripts
 The scripts, in order of operations:
@@ -82,5 +112,9 @@ This script will find the position with the highest read depth across all experi
 * Columns 8 to 23: The following columns (depth_*, norm_depth_*) provides information for each individual peak without any grouping. These peaks were identified using the detect.spikes() function from the peakPick R library. For each nucleotide location, the standard deviation of the specific position was calculated from the log CPM values of all positions within a window on either side of the specified position. A peak is called if the standard deviation is above the specified threshold. The algortihm is iterative in that it will exclude the log CPM values of identified peaks, then repeat the peak picking process repeatedly, until the current total number of detected peaks does not change significantly.
   + depth_* : Columns with the prefix depth_*. The number at the end of the column name indicates the replicate number. This column records the original read counts corresponding to that position and strand. A value of NA indicates that a peak has not been identified at the corresponding position and strand. This may be NA despite having read counts at the position and strand.
   + norm_depth* : Columns with the prefix norm_depth_*. The number at the end of the column name indicates the replicate numbe. This column records the read deapths converted to log counts per million (log CPM) for the corresponding sample. Peaks must have a CPM of at least 1. A value of NA indicates that a peak has not been identified at the corresponding position and strand. This may be NA despite having read counts at the position and strand.
+
+
+## Contact Us
+Please contact Ignatius Pang (ipang [at] cmri.org.au) if you have any questions or queries on the above instructions. Otherwise, please feel free to leave questions as a GitHub issues above. 
 
 
