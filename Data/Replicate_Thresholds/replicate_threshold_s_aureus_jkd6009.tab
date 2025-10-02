@@ -1,4 +1,4 @@
-condition	num_replicates_threshold	peaks_num_replicates_threshold
+condition	min_count_num_replicates_threshold	peaks_num_replicates_threshold
 cont	2	1
 linz	2	1
 tige	2	1

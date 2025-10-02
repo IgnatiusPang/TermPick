@@ -14,8 +14,8 @@ data_dir <- file.path( base_dir, "Data" )
 
 graph_dir <- file.path(data_dir, "Bedtools_Count")
 
-#results_dir <- file.path(base_dir, "Results")
-results_dir <- "/srv/scratch/treelab/SW_temporary_TermSeq_Results_of_run_pick_peak"
+results_dir <- file.path(base_dir, "Results")
+#results_dir <- "/srv/scratch/treelab/SW_temporary_TermSeq_Results_of_run_pick_peak"
 
 source_dir <- file.path(base_dir, "Source")
 
@@ -47,6 +47,12 @@ sessionInfo()
 ```{r}
 
 use_log <- TRUE
+compute_platform <- "home"
+window_length <- 8   
+std_dev_cutoff <- 4 
+replicate_cpm_cutoff <- 0
+distance_window_threshold <- 5
+num_conditions_threshold <- 1
 
 ```
 
@@ -54,7 +60,8 @@ use_log <- TRUE
 ## Directories and Files management
 ```{r}
 
-project_output_dir <- file.path( results_dir, "Sites_B_subtilis" )
+#project_output_dir <- file.path( results_dir, "Sites_B_subtilis" )
+project_output_dir <- file.path( results_dir, "Sites" )
 
 upset_counts_dir <- file.path(project_output_dir, "UpSet_Counts")
 upset_ratios_dir <- file.path(project_output_dir, "UpSet_Ratios")
@@ -78,7 +85,7 @@ selected_parameter_file <- file.path( selected_params_dir,
 
 if( use_log == TRUE) {
   selected_parameter_file <- file.path( selected_params_dir, 
-                          "condition_vs_position_clusters_win8_sd4_cpm0_gw5.tab")
+                          "condition_vs_position_clusters_win8_sd4_cpm1_gw5.tab")
   
 }
 
@@ -87,13 +94,13 @@ if( use_log == TRUE) {
 
 ```{r}
 # Threshold number of replicates with reads for each genomic position for it to be included in further analysis
-replicate_thresholds <- vroom::vroom( file.path( data_dir,
-                         "Replicate_Thresholds",
-                         "replicate_threshold_b_subtilis.tab" ))
+# replicate_thresholds <- vroom::vroom( file.path( data_dir,
+#                          "Replicate_Thresholds",
+#                          "replicate_threshold_b_subtilis.tab" ))
 
-# replicate_thresholds <- vroom::vroom( file.path( data_dir, 
-#                          "Replicate_Thresholds", 
-#                          "replicate_threshold_s_aureus_jkd6009.tab" ))
+replicate_thresholds <- vroom::vroom( file.path( data_dir, 
+                         "Replicate_Thresholds", 
+                         "replicate_threshold_s_aureus_jkd6009.tab" ))
 
 column_names_array <- replicate_thresholds %>% distinct(condition) %>% 
   arrange(condition) %>% pull(condition)  
@@ -163,22 +170,24 @@ dist5_cpm1_counts <- counts_table_clean %>%
   group_by( row_id, cpm_cutoff, distance_window, window, std_dev, total_counts ) %>%
   dplyr::summarise( num_condition_identified = sum(is_identified)) %>%
   ungroup() %>%
-  dplyr::filter( num_condition_identified >=4 ) %>%
-  dplyr::filter( cpm_cutoff == 1 &
-                   distance_window == 5)
+  dplyr::filter( num_condition_identified >= num_conditions_threshold )# %>%
+ # dplyr::filter( cpm_cutoff == replicate_cpm_cutoff &
+   #                distance_window == distance_window_threshold )
 
-min_window <- dist5_cpm1_counts %>% distinct(window) %>% pull(window) %>% min
-max_window <- dist5_cpm1_counts %>% distinct(window) %>% pull(window) %>% max
+if (nrow(dist5_cpm1_counts) > 0) {
+  min_window <- dist5_cpm1_counts %>% distinct(window) %>% pull(window) %>% min
+  max_window <- dist5_cpm1_counts %>% distinct(window) %>% pull(window) %>% max
 
 
-dist5_cpm1_counts_heatmap <- dist5_cpm1_counts %>%
-  mutate( window = factor(window, levels=seq(min_window, max_window,1) )) %>%
-  ggplot( aes(window, std_dev, fill= total_counts)) + 
-  geom_tile() +
-  scale_fill_viridis() + 
-  theme_bw()
-    
-dist5_cpm1_counts_heatmap
+  dist5_cpm1_counts_heatmap <- dist5_cpm1_counts %>%
+    mutate( window = factor(window, levels=seq(min_window, max_window,1) )) %>%
+    ggplot( aes(window, std_dev, fill= total_counts)) +
+    geom_tile() +
+    scale_fill_viridis() +
+    theme_bw()
+
+  dist5_cpm1_counts_heatmap
+}
 
 ## don't know why ggplotly is not working
 # ggplotly( dist5_cpm1_counts_heatmap)

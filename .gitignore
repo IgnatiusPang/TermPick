@@ -37,3 +37,12 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+GEMINI.md
+Data/Bedtools_Count/Staph_termseq_l*
+Data/Bedtools_Count/Staph_termseq_v*
+Data/Bedtools_Count/Staph_termseq_t*
+*.tar.gz
+*.tgz
+*.gz
+Results
+*.html

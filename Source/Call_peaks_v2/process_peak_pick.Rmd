@@ -13,8 +13,8 @@ data_dir <- file.path( base_dir, "Data" )
 
 graph_dir <- file.path(data_dir, "Bedtools_Count")
 
-#results_dir <- file.path(base_dir, "Results")
-results_dir <- "/srv/scratch/treelab/SW_temporary_TermSeq_Results_of_run_pick_peak"
+results_dir <- file.path(base_dir, "Results")
+# results_dir <- "/srv/scratch/treelab/SW_temporary_TermSeq_Results_of_run_pick_peak"
 #results_dir <- "/Data"
 
 source_dir <- file.path(base_dir, "Source")
@@ -52,20 +52,24 @@ get_final_results <- TRUE
 
 
 compute_platform <- "home"
-window_length <- 5   
-std_dev_cutoff <- 8 
-replicate_cpm_cutoff <- 2
-distance_window <- 5
-num_conditions_threshold <- 4
+window_length <- 8   
+std_dev_cutoff <- 4 
+num_conditions_threshold <- 1
+
+## Parameters for Looping
+# cpm_cutoff_list <- c(1, 2, 4, 8)
+# distance_window_list <- seq( 5, 20, 5)
+cpm_cutoff_list <- c(2, 4)
+distance_window_list <- c(5)
 
 # Threshold number of replicates with reads for each genomic position for it to be included in further analysis
-replicate_thresholds <- vroom::vroom( file.path( data_dir,
-                         "Replicate_Thresholds",
-                         "replicate_threshold_b_subtilis.tab" ))
+# replicate_thresholds <- vroom::vroom( file.path( data_dir,
+#                          "Replicate_Thresholds",
+#                          "replicate_threshold_b_subtilis.tab" ))
 
-# replicate_thresholds <- vroom::vroom( file.path( data_dir, 
-#                          "Replicate_Thresholds", 
-#                          "replicate_threshold_s_aureus_jkd6009.tab" ))
+replicate_thresholds <- vroom::vroom( file.path( data_dir, 
+                         "Replicate_Thresholds", 
+                         "replicate_threshold_s_aureus_jkd6009.tab" ))
 
 column_names_array <- replicate_thresholds %>% distinct(condition) %>% 
   arrange(condition) %>% pull(condition)  
@@ -80,25 +84,31 @@ if(length(options) > 0 ) {
   
 } 
 
-## Parameters for Looping
-# cpm_cutoff_list <- c(1, 2, 4, 8)
-# distance_window_list <- seq( 5, 20, 5)
-cpm_cutoff_list <- c(2, 4)
-distance_window_list <- c(5)
 
 
 if( get_final_results == TRUE) {
-  window_length <- 8
-  std_dev_cutoff <-  7
-  cpm_cutoff_list  <- c(2, 4)
-  distance_window_list <- c( 5)
+  # window_length <- 20
+  # std_dev_cutoff <-  3
+  # cpm_cutoff_list  <- c(2, 4)
+  # distance_window_list <- c( 5)
   
-  if(use_log==TRUE) {
-    window_length <- 8
-    std_dev_cutoff <-  3
-    cpm_cutoff_list <-  c(2, 4)
-    distance_window_list <- c( 5)    
-  }
+  window_length <- 8   
+  std_dev_cutoff <- 4 
+  cpm_cutoff_list <- c(2, 4)
+  distance_window_list <- c(5)
+  
+
+if(use_log==TRUE) {
+  # window_length <- 20
+  # std_dev_cutoff <-  3
+  # cpm_cutoff_list <-  c(2, 4)
+  # distance_window_list <- c( 5)    
+  
+  window_length <- 8   
+  std_dev_cutoff <- 4 
+  cpm_cutoff_list <- c(2, 4)
+  distance_window_list <- c(5)
+}
 }
 
 if( use_log == TRUE) {
@@ -242,6 +252,7 @@ for(replicate_cpm_cutoff in cpm_cutoff_list ) {
   }
   
   if ( nrow(all_positions) == 0 ) {
+    print("Next")
     next
   }
   

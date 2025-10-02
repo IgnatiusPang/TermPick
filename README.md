@@ -115,6 +115,6 @@ This script will find the position with the highest read depth across all experi
 
 
 ## Contact Us
-Please contact Ignatius Pang (ipang [at] cmri.org.au) if you have any questions or queries on the above instructions. Otherwise, please feel free to leave questions as a GitHub issues above. 
+Please contact Ignatius Pang (ignatius.pang [at] mq.edu.au) if you have any questions or queries on the above instructions. Otherwise, please feel free to leave questions as a GitHub issues above. 
 
 

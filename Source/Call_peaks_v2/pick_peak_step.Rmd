@@ -39,6 +39,7 @@ p_load(here)
 p_load(devtools)
 #p_load(peakPick)
 p_load(furrr)
+p_load(future)
 
 
 if( !require(furrr)) {
@@ -58,9 +59,9 @@ source( file.path( source_dir, "Common", "pick_peaks.R") )
 
 use_log <- TRUE
 num_cores <- 6          
-window_length <- 20
-std_dev_cutoff <- 3
-replicate_cpm_cutoff <- 1
+window_length <- 8
+std_dev_cutoff <- 4
+replicate_cpm_cutoff <- 0
 distance_window <- 5
 compute_platform <- "clive"
 
@@ -124,10 +125,12 @@ if ( run_analysis == FALSE ) {
   
   
 ```{r}
-options( future.globals.maxSize = 700*1024^2)
-future_options(seed = as.integer(12345 ) )
+options(future.globals.maxSize = NULL)
+options( future.globals.maxSize = 2 * 1024^3)
+furrr_options(seed = as.integer(12345 ) )
 
-plan(multiprocess, workers = num_cores)
+library(future)
+plan(multisession, workers = num_cores)
 
 
 ```
